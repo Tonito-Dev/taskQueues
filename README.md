@@ -20,24 +20,24 @@ This project implements an asynchronous task processing system with a REST API f
 
 ```
 ┌─────────────┐
-│   Client     │
+│   Client    │
 └──────┬──────┘
        │ HTTP POST /submit
        ▼
-┌───────────────┐
-│   REST API     │
-│   Handler      │
-└────────┬─────┘
+┌─────────────────┐
+│   REST API      │
+│   Handler       │
+└────────┬────────┘
          │
          ▼
 ┌─────────────────┐      ┌──────────────┐
 │   Task Queue    │─────▶│   Worker 1   │
-│   (Channel)     │       └──────────────┘
-│                 │        ┌──────────────┐
-│  Buffered: 100  │─────▶│   Worker 2     │
-│                 │        └──────────────┘
-│                 │        ┌──────────────┐
-│                 │─────▶│   Worker N    │
+│   (Channel)     │      └──────────────┘
+│                 │      ┌──────────────┐
+│  Buffered: 100  │─────▶│   Worker 2   │
+│                 │      └──────────────┘
+│                 │      ┌──────────────┐
+│                 │─────▶│   Worker N   │
 └─────────────────┘      └──────┬───────┘
                                 │
                                 ▼
