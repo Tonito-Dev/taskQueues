@@ -30,7 +30,6 @@ type Result struct {
 	ProcessedAt time.Time `json:"processed_at"`
 }
 
-// TaskQueue manages our task processing system
 type TaskQueue struct {
 	taskChan   chan Task
 	resultChan chan Result
@@ -41,7 +40,6 @@ type TaskQueue struct {
 	cancel     context.CancelFunc // Function to trigger cancellation
 }
 
-// NewTaskQueue creates and starts a new task queue
 func NewTaskQueue(numWorkers int) *TaskQueue {
 	// Create a context that can be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -54,21 +52,17 @@ func NewTaskQueue(numWorkers int) *TaskQueue {
 		cancel:     cancel,
 	}
 
-	// Start workers
 	for i := 1; i <= numWorkers; i++ {
 		tq.wg.Add(1)
 		go tq.worker(i)
 	}
 
-	// Start result collector
 	go tq.collectResults()
 
 	return tq
 }
 
-// SubmitTask adds a task to the queue
 func (tq *TaskQueue) SubmitTask(task Task) error {
-	// Check if we're shutting down
 	select {
 	case <-tq.ctx.Done():
 		return fmt.Errorf("queue is shutting down")
@@ -78,7 +72,6 @@ func (tq *TaskQueue) SubmitTask(task Task) error {
 	}
 }
 
-// GetResult retrieves the result of a task by ID
 func (tq *TaskQueue) GetResult(taskID string) (Result, bool) {
 	tq.resultsMux.RLock()
 	defer tq.resultsMux.RUnlock()
@@ -86,17 +79,13 @@ func (tq *TaskQueue) GetResult(taskID string) (Result, bool) {
 	return result, exists
 }
 
-// Shutdown gracefully stops the task queue
 func (tq *TaskQueue) Shutdown(timeout time.Duration) error {
 	log.Println(" Starting graceful shutdown...")
 
-	// Signal all goroutines to stop
 	tq.cancel()
 
-	// Close task channel (no new tasks accepted)
 	close(tq.taskChan)
 
-	// Wait for workers with timeout
 	done := make(chan struct{})
 	go func() {
 		tq.wg.Wait()
@@ -110,14 +99,12 @@ func (tq *TaskQueue) Shutdown(timeout time.Duration) error {
 		return fmt.Errorf("shutdown timeout: workers didn't finish in time")
 	}
 
-	// Close result channel
 	close(tq.resultChan)
 
 	log.Println(" Graceful shutdown complete")
 	return nil
 }
 
-// worker processes tasks from the queue with context awareness
 func (tq *TaskQueue) worker(id int) {
 	defer tq.wg.Done()
 
@@ -135,10 +122,8 @@ func (tq *TaskQueue) worker(id int) {
 				return
 			}
 
-			// Process task with timeout
 			result := tq.processTaskWithTimeout(id, task, 5*time.Second)
 
-			// Try to send result, but respect shutdown
 			select {
 			case tq.resultChan <- result:
 			case <-tq.ctx.Done():
@@ -149,22 +134,17 @@ func (tq *TaskQueue) worker(id int) {
 	}
 }
 
-// processTaskWithTimeout processes a task with a timeout
 func (tq *TaskQueue) processTaskWithTimeout(workerID int, task Task, timeout time.Duration) Result {
 	log.Printf("    Worker %d processing task %s", workerID, task.ID)
 
-	// Create a context with timeout for this specific task
 	ctx, cancel := context.WithTimeout(tq.ctx, timeout)
 	defer cancel()
 
-	// Channel to receive result from processing
 	resultChan := make(chan Result, 1)
 
-	// Do the actual work in a goroutine
 	go func() {
 		processingTime := time.Duration(500+rand.Intn(1000)) * time.Millisecond
 
-		// Simulate work that respects cancellation
 		select {
 		case <-time.After(processingTime):
 			// Work completed
@@ -187,18 +167,15 @@ func (tq *TaskQueue) processTaskWithTimeout(workerID int, task Task, timeout tim
 			resultChan <- result
 
 		case <-ctx.Done():
-			// Work was cancelled or timed out
 			return
 		}
 	}()
 
-	// Wait for result or timeout/cancellation
 	select {
 	case result := <-resultChan:
 		return result
 
 	case <-ctx.Done():
-		// Task timed out or was cancelled
 		log.Printf("     Worker %d: task %s timed out or cancelled", workerID, task.ID)
 		return Result{
 			TaskID:      task.ID,
@@ -209,7 +186,6 @@ func (tq *TaskQueue) processTaskWithTimeout(workerID int, task Task, timeout tim
 	}
 }
 
-// collectResults gathers results and stores them
 func (tq *TaskQueue) collectResults() {
 	for result := range tq.resultChan {
 		tq.resultsMux.Lock()
@@ -219,23 +195,20 @@ func (tq *TaskQueue) collectResults() {
 	log.Println(" Result collector stopped")
 }
 
-// Global task queue instance
 var taskQueue *TaskQueue
 
 func main() {
-	// Initialize task queue with 5 workers
 	taskQueue = NewTaskQueue(5)
 
-	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// Setup HTTP routes
+	// HTTP routes
 	http.HandleFunc("/submit", submitTaskHandler)
 	http.HandleFunc("/status/", getStatusHandler)
 	http.HandleFunc("/stats", getStatsHandler)
 
-	// Create HTTP server
+	// HTTP server
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: nil,
@@ -255,7 +228,7 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal
+	// interrupt signal
 	<-sigChan
 	log.Println("\n Interrupt signal received")
 
@@ -276,7 +249,6 @@ func main() {
 	log.Println(" Goodbye!")
 }
 
-// HTTP Handler: Submit a new task
 func submitTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -289,19 +261,16 @@ func submitTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate ID if not provided
 	if task.ID == "" {
 		task.ID = fmt.Sprintf("task-%d", time.Now().UnixNano())
 	}
 	task.CreatedAt = time.Now()
 
-	// Submit to queue (might fail if shutting down)
 	if err := taskQueue.SubmitTask(task); err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
-	// Return immediate response
 	response := map[string]string{
 		"message": "Task submitted successfully",
 		"task_id": task.ID,
@@ -312,7 +281,6 @@ func submitTaskHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// HTTP Handler: Get task status
 func getStatusHandler(w http.ResponseWriter, r *http.Request) {
 	taskID := strings.TrimPrefix(r.URL.Path, "/status/")
 	if taskID == "" {
@@ -336,7 +304,6 @@ func getStatusHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// HTTP Handler: Get queue statistics
 func getStatsHandler(w http.ResponseWriter, r *http.Request) {
 	taskQueue.resultsMux.RLock()
 	totalTasks := len(taskQueue.results)
