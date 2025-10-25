@@ -58,16 +58,13 @@ func main() {
 }
 
 func worker(id int, taskQueue <-chan Task, resultQueue chan<- Result, wg *sync.WaitGroup) {
-	// chan<- Result means "send-only channel" - worker can only write results
 	defer wg.Done()
 
 	for task := range taskQueue {
-		fmt.Printf("   🔧 Worker %d started processing %s\n", id, task.Name)
+		fmt.Printf("    Worker %d started processing %s\n", id, task.Name)
 
-		// Simulate work that might fail
 		time.Sleep(500 * time.Millisecond)
 
-		// Randomly succeed or fail (30% chance of failure)
 		success := rand.Float32() > 0.3
 
 		result := Result{
@@ -83,21 +80,18 @@ func worker(id int, taskQueue <-chan Task, resultQueue chan<- Result, wg *sync.W
 			fmt.Printf(" Worker %d failed %s\n", id, task.Name)
 		}
 
-		// Send result to the result queue
 		resultQueue <- result
 	}
 
 	fmt.Printf(" Worker %d shutting down\n", id)
 }
 
-// resultCollector gathers all results and prints a summary
 func resultCollector(resultQueue <-chan Result, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var successCount, failCount int
 	var results []Result
 
-	// Collect all results
 	for result := range resultQueue {
 		results = append(results, result)
 		if result.Success {
@@ -107,7 +101,6 @@ func resultCollector(resultQueue <-chan Result, wg *sync.WaitGroup) {
 		}
 	}
 
-	// Print summary
 	separator := strings.Repeat("=", 50)
 	fmt.Println("\n" + separator)
 	fmt.Println(" RESULTS SUMMARY")
