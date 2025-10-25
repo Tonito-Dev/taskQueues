@@ -8,13 +8,11 @@ import (
 	"time"
 )
 
-// Task represents a unit of work
 type Task struct {
 	ID   int
 	Name string
 }
 
-// Result represents the outcome of processing a task
 type Result struct {
 	TaskID  int
 	Success bool
@@ -37,13 +35,11 @@ func main() {
 		go worker(i, taskQueue, resultQueue, &wg)
 	}
 
-	// Start a result collector goroutine
-	// This runs separately to gather all results
 	var collectorWg sync.WaitGroup
 	collectorWg.Add(1)
 	go resultCollector(resultQueue, &collectorWg)
 
-	// Send tasks to the queue
+	// Sending tasks to the queue
 	numTasks := 10
 	for i := 1; i <= numTasks; i++ {
 		task := Task{
@@ -54,23 +50,18 @@ func main() {
 		taskQueue <- task
 	}
 
-	// Close task queue - no more tasks
 	close(taskQueue)
 
-	// Wait for all workers to finish processing
 	fmt.Println("\n⏳ Waiting for workers to finish...")
 	wg.Wait()
 	fmt.Println("✅ All workers done!")
 
-	// Now close the result queue since no more results coming
 	close(resultQueue)
 
-	// Wait for result collector to finish
 	collectorWg.Wait()
 	fmt.Println("📊 Result collection complete!")
 }
 
-// worker processes tasks and sends results
 func worker(id int, taskQueue <-chan Task, resultQueue chan<- Result, wg *sync.WaitGroup) {
 	// chan<- Result means "send-only channel" - worker can only write results
 	defer wg.Done()
@@ -131,7 +122,6 @@ func resultCollector(resultQueue <-chan Result, wg *sync.WaitGroup) {
 	fmt.Printf("❌ Failed: %d\n", failCount)
 	fmt.Println(separator)
 
-	// Show failed tasks
 	if failCount > 0 {
 		fmt.Println("\n❌ Failed tasks:")
 		for _, result := range results {
